@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shift Relief Board</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#161D27;
+    --panel:#1C2530;
+    --panel-2:#212B37;
+    --line:#333F4C;
+    --text:#EDEFF2;
+    --text-dim:#8FA0AD;
+    --amber:#F2A93B;
+    --amber-dim:#8A6320;
+    --teal:#2FB8AC;
+    --teal-dim:#1D6B64;
+    --red:#E2574C;
+    --pending:#5B9DD9;
+    --pending-dim:#2C5878;
+    --closed-gray:#8FA0AD;
+    --radius:4px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  #app{min-height:100vh;display:flex;flex-direction:column;}
+
+  ::selection{background:var(--amber);color:#161D27;}
+
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;}
+
+  header.topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#1a2330,#161D27);
+    position:sticky;top:0;z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:14px;}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .brand h1{font-size:26px;margin:0;letter-spacing:0.04em;}
+  .brand .sub{font-size:11px;color:var(--text-dim);letter-spacing:0.14em;margin-top:-2px;}
+
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .count-chip{
+    display:flex;align-items:center;gap:8px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:var(--radius);padding:6px 12px;
+  }
+  .count-chip .n{font-family:'IBM Plex Mono';font-size:16px;color:var(--amber);}
+  .count-chip .l{font-size:11px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;}
+
+  button{font-family:'Inter',sans-serif;cursor:pointer;border-radius:var(--radius);border:1px solid var(--line);}
+  .btn{background:var(--panel-2);color:var(--text);padding:9px 16px;font-size:13px;font-weight:600;transition:.15s;}
+  .btn:hover{border-color:var(--amber);}
+  .btn-primary{background:var(--amber);color:#1a1204;border-color:var(--amber);font-weight:600;}
+  .btn-primary:hover{background:#f5b757;}
+  .btn-ghost{background:transparent;color:var(--text-dim);border-color:transparent;padding:9px 10px;}
+  .btn-ghost:hover{color:var(--text);}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+
+  main{flex:1;display:grid;grid-template-columns:minmax(340px,1fr) minmax(320px,1.05fr);gap:0;min-height:0;}
+  @media (max-width:900px){ main{grid-template-columns:1fr;} }
+
+  .board-panel{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;}
+  @media (max-width:900px){ .board-panel{border-right:none;border-bottom:1px solid var(--line);} }
+
+  .board-head{display:flex;align-items:center;justify-content:space-between;padding:16px 22px 10px;}
+  .board-head h2{font-size:20px;margin:0;}
+  .view-toggle{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .view-btn{background:var(--panel-2);color:var(--text-dim);border:none;padding:7px 14px;font-size:12px;font-weight:600;letter-spacing:0.04em;border-right:1px solid var(--line);}
+  .view-btn:last-child{border-right:none;}
+  .view-btn.active{background:var(--amber);color:#1a1204;}
+  .view-btn:not(.active):hover{color:var(--text);}
+  .board-list{flex:1;overflow-y:auto;padding:6px 16px 24px;display:flex;flex-direction:column;gap:10px;}
+
+  .board-list::-webkit-scrollbar{width:8px;}
+  .board-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  .calendar{flex:1;overflow-y:auto;padding:6px 16px 20px;display:flex;flex-direction:column;}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 12px;}
+  .cal-label{font-size:13px;color:var(--text);letter-spacing:0.06em;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .cal-dow{font-size:10px;color:var(--text-dim);text-align:center;letter-spacing:0.08em;padding-bottom:4px;}
+  .cal-cell{background:var(--panel);border:1px solid var(--line);border-radius:3px;min-height:78px;padding:5px;display:flex;flex-direction:column;gap:3px;}
+  .cal-cell.outside{opacity:0.35;}
+  .cal-cell.today{border-color:var(--amber);}
+  .cal-daynum{font-family:'IBM Plex Mono';font-size:11px;color:var(--text-dim);}
+  .cal-chip{font-size:10px;padding:2px 5px;border-radius:2px;line-height:1.4;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-chip.open{background:rgba(242,169,59,0.16);color:var(--amber);border:1px solid var(--amber-dim);}
+  .cal-chip.covered{background:rgba(47,184,172,0.16);color:var(--teal);border:1px solid var(--teal-dim);}
+  .cal-chip.closed{background:rgba(143,160,173,0.16);color:var(--text-dim);border:1px solid var(--line);}
+  .cal-chip.pending{background:rgba(91,157,217,0.16);color:var(--pending);border:1px solid var(--pending-dim);}
+  .cal-more{font-size:10px;color:var(--text-dim);}
+  @media (max-width:900px){ .cal-cell{min-height:58px;} .cal-chip{font-size:9px;} }
+
+  .empty-state{margin:30px 22px;padding:26px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--text-dim);font-size:13px;line-height:1.6;}
+
+  .flap{
+    position:relative;perspective:1000px;background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  }
+  .flap-inner{
+    display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center;
+    padding:14px 16px;transition:transform .5s cubic-bezier(.4,0,.2,1);
+  }
+  .flap.covered .flap-inner{ }
+  .flap-time{display:flex;flex-direction:column;gap:2px;}
+  .flap-time .d{font-family:'IBM Plex Mono';font-size:12px;color:var(--text-dim);}
+  .flap-time .t{font-family:'IBM Plex Mono';font-size:14px;color:var(--text);}
+  .flap-mid .title{font-size:15px;font-weight:600;margin:0 0 3px;}
+  .flap-mid .loc{font-size:12px;color:var(--text-dim);}
+  .flap-mid .notes{font-size:12px;color:var(--text-dim);margin-top:4px;font-style:italic;}
+  .flap-status{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  .tag{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:0.08em;padding:4px 9px;border-radius:3px;font-weight:500;}
+  .tag.open{background:rgba(242,169,59,0.14);color:var(--amber);border:1px solid var(--amber-dim);}
+  .tag.covered{background:rgba(47,184,172,0.14);color:var(--teal);border:1px solid var(--teal-dim);}
+  .tag.urgent{background:rgba(226,87,76,0.14);color:var(--red);border:1px solid #7a2a24;}
+  .tag.closed{background:rgba(143,160,173,0.14);color:var(--text-dim);border:1px solid var(--line);}
+  .tag.pending{background:rgba(91,157,217,0.14);color:var(--pending);border:1px solid var(--pending-dim);}
+  .flap.pending .flap-edge{background:var(--pending);}
+
+  .dow-select{display:flex;gap:4px;flex-wrap:wrap;}
+  .dow-btn{background:var(--panel-2);border:1px solid var(--line);color:var(--text-dim);border-radius:3px;padding:6px 10px;font-size:11px;font-family:'IBM Plex Mono';cursor:pointer;}
+  .dow-btn.active{background:var(--amber);color:#1a1204;border-color:var(--amber);}
+  .dow-btn:not(.active):hover{color:var(--text);}
+  .flap-edge{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--amber);}
+  .flap.covered .flap-edge{background:var(--teal);}
+
+  .flip-flash{animation:flashbg .6s ease;}
+  @keyframes flashbg{0%{background:var(--panel);}40%{background:rgba(47,184,172,0.18);}100%{background:var(--panel);}}
+
+  .map-panel{position:relative;min-height:340px;}
+  #map{position:absolute;inset:0;}
+  .map-legend{
+    position:absolute;bottom:14px;left:14px;z-index:500;background:rgba(28,37,48,0.92);
+    border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;font-size:11px;
+    display:flex;gap:14px;color:var(--text-dim);
+  }
+  .map-legend span{display:flex;align-items:center;gap:6px;}
+  .map-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--text);border-radius:var(--radius);}
+  .leaflet-popup-tip{background:var(--panel);}
+  .popup-title{font-weight:600;font-size:14px;margin-bottom:3px;}
+  .popup-meta{font-size:12px;color:var(--text-dim);margin-bottom:8px;font-family:'IBM Plex Mono';}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(10,14,19,0.72);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:6px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;}
+  .modal.modal-wide{max-width:820px;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line);}
+  .modal-head h3{margin:0;font-size:18px;}
+  .modal-body{padding:20px;display:flex;flex-direction:column;gap:14px;}
+  label{font-size:12px;color:var(--text-dim);letter-spacing:0.04em;text-transform:uppercase;display:block;margin-bottom:6px;}
+  input,textarea{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);
+    color:var(--text);padding:10px 11px;font-family:'Inter';font-size:14px;
+  }
+  input:focus,textarea:focus{outline:none;border-color:var(--amber);}
+  textarea{resize:vertical;min-height:60px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field-hint{font-size:11px;color:var(--text-dim);margin-top:4px;}
+  .modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--line);}
+  .geostatus{font-size:11px;color:var(--text-dim);margin-top:4px;font-family:'IBM Plex Mono';}
+  .geostatus.ok{color:var(--teal);}
+  .geostatus.err{color:var(--red);}
+
+  .history-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);}
+  table.history-table{width:100%;border-collapse:collapse;font-size:12px;}
+  table.history-table th{
+    text-align:left;background:var(--panel-2);color:var(--text-dim);font-weight:600;
+    letter-spacing:0.04em;text-transform:uppercase;font-size:10.5px;padding:9px 10px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;
+  }
+  table.history-table td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--text);vertical-align:top;}
+  table.history-table tr:last-child td{border-bottom:none;}
+  table.history-table tr:hover td{background:var(--panel-2);}
+  table.history-table .tag{font-size:10px;padding:3px 7px;}
+
+  .activity{border-top:1px solid var(--line);padding:14px 22px 18px;}
+  .activity h4{font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin:0 0 10px;}
+  .activity ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:110px;overflow-y:auto;}
+  .activity li{font-size:12px;color:var(--text-dim);font-family:'IBM Plex Mono';}
+  .activity li b{color:var(--text);font-family:'Inter';font-weight:500;}
+
+  footer.settings-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 22px;border-top:1px solid var(--line);font-size:11px;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1 class="display">Shift Relief Board</h1>
+        <div class="sub mono">POST · CLAIM · COVER</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="count-chip"><span class="n mono" id="openCount">0</span><span class="l">Open</span></div>
+      <div class="count-chip" id="pendingChip" style="display:none;"><span class="n mono" id="pendingCount" style="color:var(--pending);">0</span><span class="l">Pending</span></div>
+      <button class="btn-ghost" id="btnHistory" title="View historical log of all shifts">📜 History Log</button>
+      <button class="btn-ghost" id="btnSettings" title="Email notifications and map settings">⚙ Settings</button>
+      <button class="btn btn-primary" id="btnPost">+ Post a Shift</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="board-panel">
+      <div class="board-head">
+        <h2 class="display" id="boardTitle">Open Shifts</h2>
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="list">List</button>
+          <button class="view-btn" data-view="calendar">Calendar</button>
+        </div>
+      </div>
+      <div class="board-list" id="boardList"></div>
+      <div class="calendar" id="calendarView" style="display:none;">
+        <div class="cal-nav">
+          <button class="btn-ghost btn-sm" id="calPrev">‹ Prev</button>
+          <span class="cal-label mono" id="calLabel"></span>
+          <button class="btn-ghost btn-sm" id="calNext">Next ›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="map-legend" style="position:static;margin:10px 2px 0;display:inline-flex;">
+          <span><i style="background:var(--amber)"></i>Open</span>
+          <span><i style="background:var(--teal)"></i>Covered</span>
+          <span><i style="background:#8FA0AD"></i>Closed</span>
+        </div>
+      </div>
+      <div class="activity">
+        <h4>Activity</h4>
+        <ul id="activityLog"><li>No activity yet.</li></ul>
+      </div>
+    </section>
+
+    <section class="map-panel">
+      <div id="map"></div>
+      <div class="map-legend">
+        <span><i style="background:var(--amber)"></i>Open</span>
+        <span><i style="background:var(--teal)"></i>Covered</span>
+        <span><i style="background:#8FA0AD"></i>Closed</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Shift detail modal (used by calendar chips) -->
+  <div class="overlay" id="detailOverlay">
+    <div class="modal">
+      <div class="modal-head"><h3 id="detailTitle">Shift</h3><button class="btn-ghost" data-close="detailOverlay">✕</button></div>
+      <div class="modal-body" id="detailBody"></div>
+      <div class="modal-foot">
+        <button class="btn" data-close="detailOverlay">Close</button>
+        <button class="btn" id="detailDenyBtn" style="display:none;color:var(--red);">Deny</button>
+        <button class="btn" id="detailApproveBtn" style="display:none;color:var(--teal);">Approve</button>
+        <button class="btn" id="detailCloseShiftBtn" style="display:none;">Close shift</button>
+        <button class="btn btn-primary" id="detailClaimBtn" style="display:none;">Claim shift</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="settings-bar">
+    <span>Shifts are shared across everyone viewing this board. <span class="mono" id="lastSync">syncing…</span></span>
+    <span id="watcherCount">0 people watching for new postings</span>
+  </footer>
+</div>
+
+<!-- Post shift modal -->
+<div class="overlay" id="postOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Post an open shift</h3><button class="btn-ghost" data-close="postOverlay">✕</button></div>
+    <div class="modal-body">
+      <div>
+        <label>Shift / role</label>
+        <input id="f-title" placeholder="e.g. Front Desk, ICU Nurse, Barista PM" />
+      </div>
+      <div class="row2">
+        <div>
+          <label>Date</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div>
+          <label>Urgency</label>
+          <input id="f-urgent-note" placeholder="optional, e.g. same-day" />
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label>Start time</label>
+          <input id="f-start" type="time" />
+        </div>
+        <div>
+          <label>End time</label>
+          <input id="f-end" type="time" />
+        </div>
+      </div>
+      <div>
+        <label>Repeat</label>
+        <div class="view-toggle" id="f-repeat-toggle">
+          <button type="button" class="view-btn toggle-btn active" data-repeat="none">One-time</button>
+          <button type="button" class="view-btn toggle-btn" data-repeat="daily">Daily</button>
+          <button type="button" class="view-btn toggle-btn" data-repeat="weekly">Weekly</button>
+        </div>
+        <input type="hidden" id="f-repeat-value" value="none" />
+      </div>
+      <div id="f-repeat-options" style="display:none;">
+        <div id="f-repeat-days-wrap" style="display:none;margin-bottom:12px;">
+          <label>Repeat on</label>
+          <div class="dow-select" id="f-repeat-days">
+            <button type="button" class="dow-btn" data-dow="0">Sun</button>
+            <button type="button" class="dow-btn" data-dow="1">Mon</button>
+            <button type="button" class="dow-btn" data-dow="2">Tue</button>
+            <button type="button" class="dow-btn" data-dow="3">Wed</button>
+            <button type="button" class="dow-btn" data-dow="4">Thu</button>
+            <button type="button" class="dow-btn" data-dow="5">Fri</button>
+            <button type="button" class="dow-btn" data-dow="6">Sat</button>
+          </div>
+        </div>
+        <div>
+          <label>Repeat until</label>
+          <input id="f-repeat-until" type="date" />
+        </div>
+        <div class="field-hint">Creates a separate, individually claimable shift for each matching date.</div>
+      </div>
+      <div>
+        <label>Facility</label>
+        <select id="f-facility">
+          <option value="">— Select a facility (optional) —</option>
+        </select>
+        <div class="field-hint">Picking a facility fills in its address and notifies that location's practice manager.</div>
+      </div>
+      <div>
+        <label>Location / address</label>
+        <input id="f-location" placeholder="e.g. 200 Main St, Atlanta, GA" />
+        <div class="geostatus" id="geoStatus">Location will be placed on the map automatically.</div>
+      </div>
+      <div>
+        <label>Notes (why you need coverage, anything a covering person should know)</label>
+        <textarea id="f-notes"></textarea>
+      </div>
+      <div>
+        <label>Posted on a relief website</label>
+        <div class="view-toggle" id="f-relief-toggle">
+          <button type="button" class="view-btn toggle-btn active" data-relief="no">No</button>
+          <button type="button" class="view-btn toggle-btn" data-relief="yes">Yes</button>
+        </div>
+        <input type="hidden" id="f-relief-value" value="no" />
+        <div class="field-hint">Let others know if this shift has also been posted to an outside relief-staffing site.</div>
+      </div>
+      <div class="row2">
+        <div>
+          <label>Your name</label>
+          <input id="f-poster-name" placeholder="Jamie Lee" />
+        </div>
+        <div>
+          <label>Your email</label>
+          <input id="f-poster-email" placeholder="jamie@example.com" />
+        </div>
+      </div>
+      <div class="field-hint">You'll get an email (if notifications are configured) the moment someone claims this shift.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="postOverlay">Cancel</button>
+      <button class="btn btn-primary" id="btnSubmitShift">Post shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- Claim modal -->
+<div class="overlay" id="claimOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Claim this shift</h3><button class="btn-ghost" data-close="claimOverlay">✕</button></div>
+    <div class="modal-body">
+      <div id="claimShiftSummary" class="field-hint" style="font-size:13px;"></div>
+      <div>
+        <label>Your name</label>
+        <input id="c-name" placeholder="Alex Rivera" />
+      </div>
+      <div>
+        <label>Your email</label>
+        <input id="c-email" placeholder="alex@example.com" />
+      </div>
+      <div>
+        <label>Phone number</label>
+        <input id="c-phone" type="tel" placeholder="(555) 123-4567" />
+      </div>
+      <div>
+        <label>How many hours have you worked so far this week?</label>
+        <input id="c-hours-worked" type="number" min="0" step="0.25" placeholder="e.g. 32" />
+      </div>
+      <div>
+        <label>If you're an hourly employee, will this relief shift place you in overtime?</label>
+        <div class="view-toggle" id="c-overtime-toggle">
+          <button type="button" class="view-btn toggle-btn active" data-overtime="no">No</button>
+          <button type="button" class="view-btn toggle-btn" data-overtime="yes">Yes</button>
+        </div>
+        <input type="hidden" id="c-overtime-value" value="no" />
+      </div>
+      <div>
+        <label>What's your day rate?</label>
+        <input id="c-day-rate" placeholder="e.g. $250/day" />
+      </div>
+      <div class="field-hint">The person who posted this shift will need to approve your claim. You'll get an email either way.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="claimOverlay">Cancel</button>
+      <button class="btn btn-primary" id="btnConfirmClaim">Request to claim</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close shift modal -->
+<div class="overlay" id="closeOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Close this shift</h3><button class="btn-ghost" data-close="closeOverlay">✕</button></div>
+    <div class="modal-body">
+      <div id="closeShiftSummary" class="field-hint" style="font-size:13px;"></div>
+      <div class="field-hint" style="margin-top:0;">Closing removes this shift from the open board without it being claimed by anyone.</div>
+      <div>
+        <label>Reason</label>
+        <select id="cl-reason">
+          <option value="">— Select a reason —</option>
+          <option value="No longer needed">No longer needed</option>
+          <option value="Filled by external relief">Filled by external relief</option>
+          <option value="Created in error">Created in error</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div id="cl-other-wrap" style="display:none;">
+        <label>Please specify</label>
+        <input id="cl-other-text" placeholder="Reason details" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="closeOverlay">Cancel</button>
+      <button class="btn btn-primary" id="btnConfirmClose">Close shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Settings</h3><button class="btn-ghost" data-close="settingsOverlay">✕</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="line-height:1.6;">
+        This board sends real emails through <b>EmailJS</b> (a free service that sends email straight from the browser — no server needed). To turn on email notifications, create a free account at emailjs.com, then paste your keys below. Without this, notifications still appear in the Activity feed on this board.
+      </div>
+      <div>
+        <label>EmailJS Service ID</label>
+        <input id="s-service" placeholder="service_xxxxxxx" />
+      </div>
+      <div>
+        <label>EmailJS Template ID</label>
+        <input id="s-template" placeholder="template_xxxxxxx" />
+      </div>
+      <div>
+        <label>EmailJS Public Key</label>
+        <input id="s-public" placeholder="public key" />
+      </div>
+      <div class="field-hint">Your template should accept variables: to_email, subject, message. These settings are saved only in your own browser.</div>
+      <hr style="border-color:var(--line);width:100%;">
+      <div>
+        <label>Get notified by email whenever a new shift is posted</label>
+        <input id="s-watch-email" placeholder="you@example.com" />
+      </div>
+      <hr style="border-color:var(--line);width:100%;">
+      <div class="field-hint" style="line-height:1.6;margin-top:0;">
+        The map's basemap already ships with a working CARTO API key, so you shouldn't need to do anything here. If that key ever stops working or hits its usage limit, get a free replacement at <b>carto.com/basemaps/apikey</b> and paste it below to override it.
+      </div>
+      <div>
+        <label>CARTO Basemap API Key (optional override)</label>
+        <input id="s-carto-key" placeholder="only needed if the built-in key stops working" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="settingsOverlay">Close</button>
+      <button class="btn btn-primary" id="btnSaveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- History log modal -->
+<div class="overlay" id="historyOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h3>History Log</h3>
+      <button class="btn-ghost" data-close="historyOverlay">✕</button>
+    </div>
+    <div class="modal-body" style="padding-top:12px;">
+      <div class="field-hint" style="margin-top:0;">Every shift ever posted, whether still open or already claimed.</div>
+      <div class="history-table-wrap">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Status</th><th>Shift</th><th>Facility / Location</th><th>Date</th><th>Time</th>
+              <th>Posted by</th><th>Relief Site</th><th>Outcome</th><th>Outcome At</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="historyOverlay">Close</button>
+      <button class="btn btn-primary" id="btnExportCsv">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/emailjs-com/3.2.0/email.min.js" onerror="window.__emailjsMissing=true"></script>
+<script>
+(function(){
+
+  // ---------- facilities (from Hospitals_and_Managers.csv) ----------
+  const FACILITIES = [{"name": "Animal Care Center \u2014 Pearisburg", "code": "ACCPE", "address": "278 Crickett Lane, Pearisburg, VA 24134", "phone": "540-921-3707", "managerName": "Kristen Cochell", "managerEmail": "kcochell@accpetvet.com", "lat": 37.3232, "lng": -80.7248}, {"name": "Animal Care Center \u2014 Princeton", "code": "ACCPR", "address": "1000 Veterinary Place, Princeton, WV 24739", "phone": "304-425-7387", "managerName": "Kristen Cochell", "managerEmail": "kcochell@accpetvet.com", "lat": 37.3646, "lng": -81.1012}, {"name": "Animal Medical Centers of Loudoun (Ashburn Farm)", "code": "AMCAF", "address": "43330 Junction Plaza Blvd, Suite 172, Ashburn, VA 20147", "phone": "703-726-8784", "managerName": "Brittany Emge", "managerEmail": "blee@loudounvet.com", "lat": 39.0437, "lng": -77.4875}, {"name": "Animal Medical Centers of Loudoun (Brambleton)", "code": "AMCBR", "address": "42385 Ryan Rd, Ste 112, Ashburn, VA 20148", "phone": "703-327-8471", "managerName": "Brittany Emge", "managerEmail": "blee@loudounvet.com", "lat": 39.0437, "lng": -77.4875}, {"name": "Armistead Avenue Veterinary Hospital", "code": "ARM", "address": "531 N Armistead Ave, Hampton, VA 23669", "phone": "757-723-8571", "managerName": "Hillary Elliott", "managerEmail": "helliott@armisteadavevethosp.com", "lat": 37.0299, "lng": -76.3452}, {"name": "Arnold Pet Station", "code": "APS", "address": "1212 Ritchie Hwy, Arnold, MD 21012", "phone": "410-544-1130", "managerName": "Katie Sturgill", "managerEmail": "sturgill@arnoldpetstation.com", "lat": 39.0068, "lng": -76.5077}, {"name": "Arnold Veterinary Hospital", "code": "AVH", "address": "1414 Ritchie Highway, Arnold, MD 21012", "phone": "410-757-7645", "managerName": "Veronica Bill", "managerEmail": "vbill@arnoldvethospital.com", "lat": 39.0068, "lng": -76.5077}, {"name": "Bay Beach Veterinary Emergency Hospital", "code": "BBNIMMO", "address": "2476 Nimmo Parkway, Unit 101,Virginia Beach, Virginia 23456", "phone": "757-427-3214", "managerName": "Julie North", "managerEmail": "julienorth@baybeachvets.com", "lat": 36.8529, "lng": -75.978}, {"name": "Bay Beach Veterinary Hospital", "code": "BBMAIN", "address": "4340 Virginia Beach Boulevard, Virginia Beach, VA 23452", "phone": "757-340-3913", "managerName": "NaTosha Harris", "managerEmail": "nharris@baybeachvets.com", "lat": 36.8529, "lng": -75.978}, {"name": "Bell County Animal Clinic", "code": "BCAH", "address": "2525 US-25E, Middlesboro, KY 40965", "phone": "606-248-4243", "managerName": "Tabitha Webb", "managerEmail": "twebb@bellcountyvet.com", "lat": 36.6098, "lng": -83.7157}, {"name": "Beltsville Veterinary Hospital", "code": "BVH", "address": "4246 Powder Mill Rd ,Beltsville, MD 20705", "phone": "301-937-3020", "managerName": "Julisa Blair", "managerEmail": "blair@beltsvillevets.com", "lat": 39.0398, "lng": -76.9091}, {"name": "Big Lick Veterinary Services", "code": "BLVS", "address": "7777 Bent Mountain Rd,Roanoke, VA 24018", "phone": "540-776-0700", "managerName": "Kim Hare", "managerEmail": "khare@biglickvetservices.com", "lat": 37.271, "lng": -79.9414}, {"name": "Brandermill Animal Hospital", "code": "BAH", "address": "12501 Hull Street Rd,Midlothian, VA 23112", "phone": "804-745-4243", "managerName": "Erin Zilko", "managerEmail": "zilko@brandermillvet.net", "lat": 37.5049, "lng": -77.6497}, {"name": "Buckeystown Veterinary Hospital", "code": "BTVH", "address": "3820 Buckeystown Pike,Buckeystown, MD 21717", "phone": "301-698-9930", "managerName": "Christine Merceruio", "managerEmail": "merceruio@buckeystownvet.com", "lat": 39.3487, "lng": -77.3891}, {"name": "Chadwell Animal Hospital", "code": "CHAD", "address": "3004 Emmorton Rd, Abingdon, MD 21009", "phone": "443- 512-8338", "managerName": "Lauren Nail", "managerEmail": "nail@chadwellanimalhospital.com", "lat": 39.4712, "lng": -76.2966}, {"name": "Colonial Animal Hospital", "code": "COL", "address": "127 E Woolbright Rd, Boynton Beach, FL 33435", "phone": "561-737-6448", "managerName": "Carmen Ryan", "managerEmail": "cryan@colonialanimalhospital.com", "lat": 26.5318, "lng": -80.0905}, {"name": "Colonial Gateway Vet Clinic", "code": "CGVC", "address": "2235 N Federal Hwy, Boynton Beach, FL 33435", "phone": "561-732-3629", "managerName": "Carmen Ryan", "managerEmail": "cryan@colonialanimalhospital.com", "lat": 26.5318, "lng": -80.0905}, {"name": "Community Animal Hospital", "code": "CAH", "address": "9679 Ocean Gateway,Easton, MD 21601", "phone": "410-822-4475", "managerName": "Victoria Howard", "managerEmail": "vhoward@caheaston.com", "lat": 38.774, "lng": -76.0741}, {"name": "Companion Animal Clinic", "code": "CAC", "address": "201 South Hill Dr,Blacksburg, VA 24060", "phone": "540-552-6800", "managerName": "", "managerEmail": "", "lat": 37.2296, "lng": -80.4139}, {"name": "Danville Family Vet", "code": "DFV", "address": "280 Piney Forest Rd., Danville VA 24540", "phone": "(434) 836-2499", "managerName": "Amy Lee", "managerEmail": "amyl@familyvet.org", "lat": 36.586, "lng": -79.395}, {"name": "Dr. Dan's Animal Hospital", "code": "DDAH", "address": "1624 14th Avenue,Vero Beach, FL 32960", "phone": "772-567-8468", "managerName": "Dee Wesley", "managerEmail": "dee@ddahvero.com", "lat": 27.6386, "lng": -80.3973}, {"name": "Dublin Animal Hospital", "code": "DAH", "address": "5720 Bagging Plant Rd,Dublin, VA 24084", "phone": "540-674-4706", "managerName": "Anona Moench", "managerEmail": "moench@dublinvets.com", "lat": 37.1032, "lng": -80.687}, {"name": "Eldersburg Veterinary Hospital", "code": "EVH", "address": "1527 Liberty Road,Eldersburg, MD, 21784", "phone": "410- 795-3088", "managerName": "Amy Smith", "managerEmail": "asmith@eldersburgvet.com", "lat": 39.4051, "lng": -76.9483}, {"name": "Emergency Animal Hospital of Ellicott City", "code": "EAH", "address": "10270 Baltimore National Pike,Ellicott City, MD 21042", "phone": "410-750-1177", "managerName": "Matt McDonald", "managerEmail": "mmcdonald@ellicottcityeah.com", "lat": 39.2673, "lng": -76.7983}, {"name": "Essex Middle River Veterinary Center (EMRVC)", "code": "EMRVC", "address": "1609 Eastern Blvd,Essex, MD 21221", "phone": "410-687-1111", "managerName": "Katie Baron", "managerEmail": "baron@emrvc.com", "lat": 39.3068, "lng": -76.493}, {"name": "Fairfax Animal Hospital", "code": "FAH", "address": "5818 Seminary Rd Ste D,Falls Church, VA 22041", "phone": "703-820-2557", "managerName": "Jessica DeShazo", "managerEmail": "deshazo@fairfaxanimalhospital.com", "lat": 38.8823, "lng": -77.1711}, {"name": "Ferguson Animal Hospital", "code": "FERG", "address": "316 7th Street, Bristol, TN 37620", "phone": "423-764-8335", "managerName": "Whitney Hambrick", "managerEmail": "whambrick@fah4pets.com", "lat": 36.5951, "lng": -82.1888}, {"name": "Gentle Care Animal Hospital", "code": "GCAH", "address": "1365 Thomas Jefferson Road Forest, VA 24551", "phone": "434-534-9894", "managerName": "Deanna Barton", "managerEmail": "dbarton@gentlecareanimalhospital.net", "lat": 37.3757, "lng": -79.2725}, {"name": "Hoffman Animal Hospital", "code": "HAH", "address": "15 Old Mill Bottom Rd N,Annapolis, MD 21409", "phone": "410-757-3566", "managerName": "Mary Beth Miyagawa", "managerEmail": "mbmiyagawa@hoffmananimalhosp.com", "lat": 38.9784, "lng": -76.4922}, {"name": "Hollymead Veterinary Hospital", "code": "VETSS", "address": "1540 Airport Rd ,Charlottesville, VA 22911", "phone": "434-973-3519", "managerName": "Maggie Cawley", "managerEmail": "cawley@hollymeadvet.com", "lat": 38.0293, "lng": -78.4767}, {"name": "Jackson Square Animal Clinic", "code": "JSAC", "address": "201 W Tyrone Rd ,Oak Ridge, TN 37830", "phone": "865-483-5994", "managerName": "Tiffany Fanning", "managerEmail": "fanning@jacksonsquareanimalclinic.com", "lat": 36.0104, "lng": -84.2696}, {"name": "Lake Forest Animal Hospital", "code": "LFAH", "address": "18510 Forest Rd,Forest, VA 24551", "phone": "434- 385-6468", "managerName": "Mandy Jamerson", "managerEmail": "mjamerson@lakeforestanimalhosp.com", "lat": 37.3757, "lng": -79.2725}, {"name": "Lancaster Veterinary Specialties", "code": "LVS", "address": "1861 Charter Lane Suite 113 Lancaster, PA 17601", "phone": "717-347-0838", "managerName": "Stephanie Chelednik", "managerEmail": "schelednik@lancastervs.com", "lat": 40.0379, "lng": -76.3055}, {"name": "Magruder-Tabb Animal Clinic", "code": "MTAC", "address": "105 Ascot Dr,Yorktown, VA 23693", "phone": "757-865-6510", "managerName": "Sara Kooger-Dennis", "managerEmail": "skoogerdennis@magrudertabbac.com", "lat": 37.2387, "lng": -76.5077}, {"name": "Manchester Veterinary Services", "code": "MVS", "address": "4175 Hanover Pike Ste A,Manchester, MD 21102", "phone": "410-374-6522", "managerName": "Tanya Andrews", "managerEmail": "andrews@vetevolve.com", "lat": 39.654, "lng": -76.8894}, {"name": "Maricamp Animal Hospital", "code": "MCAH", "address": "4485 SE 53rd Ave, Ocala, FL 34480", "phone": "352-624-0300", "managerName": "LeeAnne Hewey", "managerEmail": "leeanne.hewey@maricampanimalhospital.com", "lat": 29.1872, "lng": -82.1401}, {"name": "Memorial Veterinary Hospital - Dickson City", "code": "MVH-DC", "address": "1534 Scranton Carbondale Hwy, Dickson City, PA 18508", "phone": "570-483-4211", "managerName": "Nicole Baumgartel Tommy Noto", "managerEmail": "tnoto@memorialvet.com", "lat": 41.467, "lng": -75.6321}, {"name": "Memorial Veterinary Hospital - Throop Urgent Care", "code": "MVH-TUC", "address": "100 Dunmore St.,Throop, PA 18512", "phone": "570-483-3315", "managerName": "Nicole Baumgartel Tommy Noto", "managerEmail": "nbaumgartel@memorialvet.com tnoto@memorialvet.com", "lat": 41.4626, "lng": -75.6113}, {"name": "Memorial Veterinary Hospital - Throop Wellness", "code": "MVH-TW", "address": "100 Dunmore St.,Throop, PA 18512", "phone": "570-483-3315", "managerName": "Nicole Baumgartel;Tommy Noto", "managerEmail": "tnoto@memorialvet.com", "lat": 41.4626, "lng": -75.6113}, {"name": "Mixed Pet Veterinary Hospital", "code": "MPVH", "address": "7930-D Rea Road, Charlotte, NC 28277", "phone": "704-752-9787", "managerName": "Jamie Wollen", "managerEmail": "jamie@mixedpet.com", "lat": 35.2271, "lng": -80.8431}, {"name": "Mount Airy Veterinary Associates", "code": "MAVA", "address": "6 E Ridgeville Blvd Unit C,Mt. Airy, MD 21771", "phone": "301-829-4099", "managerName": "Rachael Graser", "managerEmail": "rgraser@mountairyvet.net", "lat": 39.3765, "lng": -77.1552}, {"name": "Nonantum Veterinary Clinic", "code": "NVC", "address": "47 Good Hope Rd,Landenberg, PA 19350", "phone": "610-255-5145", "managerName": "Lynia Dixon", "managerEmail": "lynia.dixon@nonantumvet.com", "lat": 39.8262, "lng": -75.7877}, {"name": "Paradocs Animal Hospital", "code": "PARA", "address": "35070 Germanna Heights Dr. Suite C, Locust Grove, VA 22508", "phone": "540-812-2120", "managerName": "Brittany Critchfield", "managerEmail": "bcritchfield@paradocsanimalhospital.com", "lat": 38.3379, "lng": -77.7891}, {"name": "Philadelphia Animal Hospital", "code": "PAH", "address": "7401 Holstein Ave. Philadelphia, PA 19153", "phone": "215-724-5550", "managerName": "Taylor Pasetti", "managerEmail": "taylor@philadelphiaanimalhospital.com", "lat": 39.9526, "lng": -75.1652}, {"name": "Ridgewood Animal Hospital", "code": "RAH", "address": "1044 Corporate Park Dr,Forest, VA 24551", "phone": "434-525-2111", "managerName": "Terri Warren", "managerEmail": "twarren@ridgewoodanimalhosp.com", "lat": 37.3757, "lng": -79.2725}, {"name": "Seymour Veterinary Clinic", "code": "SVC", "address": "318 Overlook Dr,Seymour, TN 37865", "phone": "865-577-8056", "managerName": "Deedra Cartledge", "managerEmail": "dcartledge@seymourvetclinic.com", "lat": 35.9587, "lng": -83.7315}, {"name": "Spotsylvania Animal Hospital", "code": "SAH", "address": "9133 Courthouse Rd,Spotsylvania, VA 22553", "phone": "540-582-6370", "managerName": "Margarett Washington", "managerEmail": "washington@spotsylvaniavets.com", "lat": 38.1943, "lng": -77.5972}, {"name": "Tazewell Pike Animal Clinic", "code": "TPAC", "address": "7408 Tazewell Pike,Corryton, TN 37721", "phone": "865-281-2502", "managerName": "", "managerEmail": "", "lat": 36.129, "lng": -83.786}, {"name": "Tri-County Veterinary Clinic", "code": "TCVC", "address": "1935 Boyds Creek Hwy,Sevierville, TN 37876", "phone": "865-577-2866", "managerName": "Stephanie Ellis", "managerEmail": "sellis@tri-countyvets.com", "lat": 35.8687, "lng": -83.5619}, {"name": "Veterinary Emergency Services (VES)", "code": "VES", "address": "465 Lee Highway Ste 111,Verona, VA 24482", "phone": "540-248-1051", "managerName": "Teresa Grogg", "managerEmail": "grogg@vetemergencycare.com", "lat": 38.1957, "lng": -79.0089}, {"name": "Walkersville Veterinary Clinic", "code": "WVC", "address": "10559 Glade Rd,Walkersville, MD 21793", "phone": "301-898-7676", "managerName": "Danielle Klein", "managerEmail": "dklein@walkersvillevet.com", "lat": 39.4854, "lng": -77.3527}, {"name": "Wheaton Animal Hospital", "code": "WHEAT", "address": "2929 University Blvd W, Kensington, MD 20895", "phone": "301-949-1520", "managerName": "Carrie Rudman", "managerEmail": "crudman@wheatonvet.com", "lat": 39.029, "lng": -77.0752}, {"name": "White Oaks Veterinary Hospital", "code": "WOVH", "address": "755 Lebanon Rd, Manheim, PA 17545", "phone": "717-665-2338", "managerName": "Kristen Lewis", "managerEmail": "klewis@whiteoaksvethospital.com", "lat": 40.1626, "lng": -76.3966}, {"name": "Woodlake Animal Hospital", "code": "WAH", "address": "6511 Woodlake Village Pkwy,Midlothian, VA 23112", "phone": "804-639-1159", "managerName": "Bobby Becker", "managerEmail": "bbecker@woodlakeanimalhospital.net", "lat": 37.5049, "lng": -77.6497}];
+
+  function populateFacilityDropdown(){
+    const sel = $('f-facility');
+    const sorted = [...FACILITIES].sort((a,b)=> a.name.localeCompare(b.name));
+    sorted.forEach(fac=>{
+      const opt = document.createElement('option');
+      opt.value = fac.code;
+      opt.textContent = fac.name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function facilityByCode(code){
+    return FACILITIES.find(f=>f.code===code) || null;
+  }
+
+  // ---------- state ----------
+  let shifts = [];
+  let watchers = [];
+  let localConfig = { serviceId:'', templateId:'', publicKey:'', watchEmail:'', cartoApiKey:'' };
+  let map, markersLayer;
+  let pendingClaimId = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- storage helpers ----------
+  async function loadShifts(){
+    try{
+      const r = await window.storage.get('shifts', true);
+      shifts = r ? JSON.parse(r.value) : [];
+    }catch(e){ shifts = []; }
+  }
+  async function saveShifts(){
+    try{ await window.storage.set('shifts', JSON.stringify(shifts), true); }
+    catch(e){ console.error('save shifts failed', e); }
+  }
+  async function loadWatchers(){
+    try{
+      const r = await window.storage.get('watchers', true);
+      watchers = r ? JSON.parse(r.value) : [];
+    }catch(e){ watchers = []; }
+  }
+  async function saveWatchers(){
+    try{ await window.storage.set('watchers', JSON.stringify(watchers), true); }
+    catch(e){ console.error('save watchers failed', e); }
+  }
+  function loadLocalConfig(){
+    try{
+      const raw = localStorage_shim_get('emailjs-config');
+    }catch(e){}
+  }
+
+  // window.storage personal (shared:false) used for this browser's email config
+  async function loadConfig(){
+    try{
+      const r = await window.storage.get('emailjs-config', false);
+      if(r) localConfig = JSON.parse(r.value);
+    }catch(e){ /* not set yet */ }
+  }
+  async function saveConfig(){
+    try{ await window.storage.set('emailjs-config', JSON.stringify(localConfig), false); }
+    catch(e){ console.error('save config failed', e); }
+  }
+
+  // ---------- email ----------
+  let emailjsReady = false;
+  function initEmailJs(){
+    if(window.__emailjsMissing || typeof emailjs === 'undefined'){ emailjsReady = false; return; }
+    if(localConfig.publicKey){
+      try{ emailjs.init(localConfig.publicKey); emailjsReady = true; }
+      catch(e){ emailjsReady = false; }
+    }
+  }
+  function sendEmail(toEmail, subject, message){
+    logActivity(`Notify → ${toEmail}: ${subject}`);
+    if(!emailjsReady || !localConfig.serviceId || !localConfig.templateId || !toEmail){
+      return Promise.resolve(false);
+    }
+    return emailjs.send(localConfig.serviceId, localConfig.templateId, {
+      to_email: toEmail, subject: subject, message: message
+    }).then(()=>true).catch((e)=>{ console.error('email send failed', e); return false; });
+  }
+
+  function logActivity(text){
+    const ul = $('activityLog');
+    if(ul.children.length===1 && ul.children[0].textContent==='No activity yet.'){ ul.innerHTML=''; }
+    const li = document.createElement('li');
+    const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    li.innerHTML = `<b>${time}</b> — ${text}`;
+    ul.prepend(li);
+    while(ul.children.length>25) ul.removeChild(ul.lastChild);
+  }
+
+  // ---------- geocoding ----------
+  async function geocode(address){
+    if(!address || address.trim().length<3) return null;
+    try{
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+      const res = await fetch(url, { headers: { 'Accept':'application/json' } });
+      const data = await res.json();
+      if(data && data[0]){ return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name }; }
+      return null;
+    }catch(e){ console.error('geocode failed', e); return null; }
+  }
+
+  $('f-facility').addEventListener('change', ()=>{
+    const fac = facilityByCode($('f-facility').value);
+    const el = $('geoStatus');
+    if(!fac){ return; }
+    $('f-location').value = fac.address;
+    if(fac.lat!=null && fac.lng!=null){
+      el.className='geostatus ok'; el.textContent = '📍 ' + fac.name + ' (pinned)';
+      el.dataset.lat = fac.lat; el.dataset.lng = fac.lng;
+    } else {
+      el.className='geostatus err'; el.textContent = 'No coordinates on file for this facility — shift will post without a map pin.';
+      delete el.dataset.lat; delete el.dataset.lng;
+    }
+  });
+
+  let geoDebounce;
+  $('f-location').addEventListener('input', ()=>{
+    clearTimeout(geoDebounce);
+    const el = $('geoStatus');
+    el.className = 'geostatus'; el.textContent = 'Locating…';
+    geoDebounce = setTimeout(async ()=>{
+      const val = $('f-location').value;
+      const res = await geocode(val);
+      if(res){ el.className='geostatus ok'; el.textContent = '📍 Found: ' + res.label; el.dataset.lat=res.lat; el.dataset.lng=res.lng; }
+      else { el.className='geostatus err'; el.textContent = 'Could not locate this address — shift will post without a map pin.'; delete el.dataset.lat; delete el.dataset.lng; }
+    }, 700);
+  });
+
+  // ---------- map ----------
+  let tileLayerRef = null;
+  const DEFAULT_CARTO_KEY = 'cb1_2nlb_1_1b71ec7082b6ee30bc44e430';
+  function initMap(){
+    map = L.map('map', { zoomControl:true }).setView([33.7490,-84.3880], 5); // default Atlanta-ish view
+    setBasemapTiles();
+    markersLayer = L.layerGroup().addTo(map);
+  }
+
+  function setBasemapTiles(){
+    if(tileLayerRef){ map.removeLayer(tileLayerRef); }
+    const key = localConfig.cartoApiKey || DEFAULT_CARTO_KEY;
+    const keyParam = key ? ('?key=' + encodeURIComponent(key)) : '';
+    tileLayerRef = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' + keyParam, {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }).addTo(map);
+  }
+
+  function renderMarkers(){
+    markersLayer.clearLayers();
+    const pts = [];
+    shifts.forEach(s=>{
+      if(s.lat==null || s.lng==null) return;
+      const color = s.status==='open' ? '#F2A93B' : (s.status==='closed' ? '#8FA0AD' : (s.status==='pending' ? '#5B9DD9' : '#2FB8AC'));
+      const marker = L.circleMarker([s.lat,s.lng], {
+        radius:9, color: color, weight:2, fillColor: color, fillOpacity:0.55
+      });
+      let actionHtml;
+      if(s.status==='open'){
+        actionHtml = `<div style="display:flex;gap:6px;"><button class="btn btn-primary btn-sm" onclick="window.__openClaim('${s.id}')">Claim</button><button class="btn btn-sm" onclick="window.__openClose('${s.id}')">Close</button></div>`;
+      } else if(s.status==='pending'){
+        actionHtml = `<div class="field-hint" style="margin:0 0 4px;">Requested by ${escapeHtml(s.pendingClaimantName||'')}</div><div class="field-hint" style="margin:0 0 6px;">Hours this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · '+escapeHtml(s.pendingClaimantDayRate) : ''}</div><div style="display:flex;gap:6px;"><button class="btn btn-sm" style="color:var(--red);" onclick="window.__denyClaim('${s.id}')">Deny</button><button class="btn btn-primary btn-sm" onclick="window.__approveClaim('${s.id}')">Approve</button></div>`;
+      } else if(s.status==='closed'){
+        actionHtml = `<span class="tag closed">CLOSED</span>`;
+      } else {
+        actionHtml = `<span class="tag covered">COVERED</span>`;
+      }
+      const popupHtml = `
+        <div class="popup-title">${escapeHtml(s.title)}</div>
+        ${s.facilityName ? `<div style="font-size:12px;font-weight:600;">${escapeHtml(s.facilityName)}</div>` : ''}
+        <div class="popup-meta">${s.date} · ${s.start}–${s.end}</div>
+        <div style="font-size:12px;margin-bottom:8px;">${escapeHtml(s.location||'')}</div>
+        ${actionHtml}
+      `;
+      marker.bindPopup(popupHtml);
+      marker.addTo(markersLayer);
+      pts.push([s.lat,s.lng]);
+    });
+    if(pts.length){ map.fitBounds(pts, {padding:[40,40], maxZoom:12}); }
+  }
+
+  function escapeHtml(str){
+    return (str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- board rendering ----------
+  let currentView = 'list';
+  let calMonth = (()=>{ const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
+
+  function renderBoard(){
+    renderMarkers();
+    $('openCount').textContent = shifts.filter(s=>s.status==='open').length;
+    const pendingN = shifts.filter(s=>s.status==='pending').length;
+    $('pendingCount').textContent = pendingN;
+    $('pendingChip').style.display = pendingN>0 ? 'flex' : 'none';
+    $('watcherCount').textContent = watchers.length + (watchers.length===1?' person watching for new postings':' people watching for new postings');
+    if(currentView==='list'){ renderListView(); } else { renderCalendarView(); }
+  }
+
+  function renderListView(){
+    const list = $('boardList');
+    const pending = shifts.filter(s=>s.status==='pending')
+      .sort((a,b)=> (a.pendingClaimedAt||0) - (b.pendingClaimedAt||0));
+    const open = shifts.filter(s=>s.status==='open')
+      .sort((a,b)=> (a.date+a.start).localeCompare(b.date+b.start));
+
+    let html = '';
+    if(pending.length>0){
+      html += `<div class="field-hint" style="margin:0 0 2px;text-transform:uppercase;letter-spacing:0.08em;font-size:11px;">Pending Approval</div>`;
+      html += pending.map(s=> pendingRowHtml(s)).join('');
+      html += `<div class="field-hint" style="margin:14px 0 2px;text-transform:uppercase;letter-spacing:0.08em;font-size:11px;">Open Shifts</div>`;
+    }
+    if(open.length===0){
+      html += `<div class="empty-state">No open shifts right now. Click <b>+ Post a Shift</b> to add one that needs relief coverage.</div>`;
+    } else {
+      html += open.map(s=> flapRowHtml(s)).join('');
+    }
+    list.innerHTML = html;
+
+    document.querySelectorAll('[data-claim]').forEach(btn=>{
+      btn.addEventListener('click', ()=> openClaimModal(btn.getAttribute('data-claim')));
+    });
+    document.querySelectorAll('[data-close-shift]').forEach(btn=>{
+      btn.addEventListener('click', ()=> openCloseModal(btn.getAttribute('data-close-shift')));
+    });
+    document.querySelectorAll('[data-approve]').forEach(btn=>{
+      btn.addEventListener('click', ()=> approveClaim(btn.getAttribute('data-approve')));
+    });
+    document.querySelectorAll('[data-deny]').forEach(btn=>{
+      btn.addEventListener('click', ()=> denyClaim(btn.getAttribute('data-deny')));
+    });
+  }
+
+  function pendingRowHtml(s){
+    return `
+    <div class="flap pending" id="flap-${s.id}">
+      <div class="flap-edge"></div>
+      <div class="flap-inner">
+        <div class="flap-time">
+          <span class="d">${formatDate(s.date)}</span>
+          <span class="t">${s.start}–${s.end}</span>
+        </div>
+        <div class="flap-mid">
+          <p class="title">${escapeHtml(s.title)}</p>
+          ${s.facilityName ? `<div class="loc" style="color:var(--text);font-weight:500;">${escapeHtml(s.facilityName)}</div>` : ''}
+          <div class="loc">${escapeHtml(s.location||'No location given')}</div>
+          <div class="field-hint" style="margin-top:4px;">Claim requested by <b style="color:var(--text);">${escapeHtml(s.pendingClaimantName||'')}</b> (${escapeHtml(s.pendingClaimantEmail||'')}${s.pendingClaimantPhone ? ', '+escapeHtml(s.pendingClaimantPhone) : ''})</div>
+          <div class="field-hint" style="margin-top:2px;">Hours worked this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ would trigger overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · Day rate: '+escapeHtml(s.pendingClaimantDayRate) : ''}</div>
+        </div>
+        <div class="flap-status">
+          <span class="tag pending">PENDING</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm" style="color:var(--red);" data-deny="${s.id}">Deny</button>
+            <button class="btn btn-sm btn-primary" data-approve="${s.id}">Approve</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function flapRowHtml(s){
+    const isOpen = s.status==='open';
+    const statusClass = isOpen ? (s.urgentNote?'urgent':'open') : (s.status==='closed' ? 'closed' : 'covered');
+    const statusLabel = isOpen ? (s.urgentNote? escapeHtml(s.urgentNote).toUpperCase() : 'OPEN') : (s.status==='closed' ? 'CLOSED' : 'COVERED');
+    return `
+    <div class="flap ${isOpen?'':'covered'}" id="flap-${s.id}">
+      <div class="flap-edge"></div>
+      <div class="flap-inner">
+        <div class="flap-time">
+          <span class="d">${formatDate(s.date)}</span>
+          <span class="t">${s.start}–${s.end}</span>
+        </div>
+        <div class="flap-mid">
+          <p class="title">${escapeHtml(s.title)}</p>
+          ${s.facilityName ? `<div class="loc" style="color:var(--text);font-weight:500;">${escapeHtml(s.facilityName)}</div>` : ''}
+          <div class="loc">${escapeHtml(s.location||'No location given')}</div>
+          ${s.notes ? `<div class="notes">"${escapeHtml(s.notes)}"</div>` : ''}
+          ${s.postedOnReliefWebsite==='yes' ? `<div class="field-hint" style="margin-top:4px;">🌐 Also posted on a relief website</div>` : ''}
+        </div>
+        <div class="flap-status">
+          <span class="tag ${statusClass}">${statusLabel}</span>
+          ${isOpen
+            ? `<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-primary" data-claim="${s.id}">Claim</button><button class="btn btn-sm" data-close-shift="${s.id}">Close</button></div>`
+            : (s.status==='closed'
+                ? `<span class="field-hint" style="margin:0;">${escapeHtml(s.closedReason||'')}</span>`
+                : `<span class="field-hint" style="margin:0;">by ${escapeHtml(s.claimerName||'')}</span>`)}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function toISODate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function renderCalendarView(){
+    const grid = $('calGrid');
+    const label = $('calLabel');
+    label.textContent = calMonth.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+
+    const year = calMonth.getFullYear(), month = calMonth.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const startDow = firstOfMonth.getDay();
+    const gridStart = new Date(year, month, 1 - startDow);
+    const todayIso = toISODate(new Date());
+
+    const shiftsByDate = {};
+    shifts.forEach(s=>{ (shiftsByDate[s.date] = shiftsByDate[s.date] || []).push(s); });
+
+    const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    let html = dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+    for(let i=0;i<42;i++){
+      const cellDate = new Date(gridStart);
+      cellDate.setDate(gridStart.getDate()+i);
+      const iso = toISODate(cellDate);
+      const outside = cellDate.getMonth()!==month;
+      const isToday = iso===todayIso;
+      const dayShifts = (shiftsByDate[iso]||[]).sort((a,b)=> a.start.localeCompare(b.start));
+      const maxShow = 3;
+      const chips = dayShifts.slice(0,maxShow).map(s=>
+        `<div class="cal-chip ${s.status==='open'?'open':(s.status==='closed'?'closed':(s.status==='pending'?'pending':'covered'))}" data-detail="${s.id}" title="${escapeHtml(s.title)} ${s.start}-${s.end}">${s.start} ${escapeHtml(s.title)}</div>`
+      ).join('');
+      const more = dayShifts.length>maxShow ? `<div class="cal-more">+${dayShifts.length-maxShow} more</div>` : '';
+      html += `<div class="cal-cell ${outside?'outside':''} ${isToday?'today':''}">
+        <div class="cal-daynum">${cellDate.getDate()}</div>
+        ${chips}${more}
+      </div>`;
+    }
+    grid.innerHTML = html;
+    document.querySelectorAll('[data-detail]').forEach(el=>{
+      el.addEventListener('click', ()=> showShiftDetail(el.getAttribute('data-detail')));
+    });
+  }
+
+  let currentDetailId = null;
+  function showShiftDetail(id){
+    const s = shifts.find(x=>x.id===id);
+    if(!s) return;
+    currentDetailId = id;
+    $('detailTitle').textContent = s.title;
+    const isOpen = s.status==='open';
+    const isPending = s.status==='pending';
+    const statusClass = isOpen ? 'open' : (s.status==='closed' ? 'closed' : (isPending ? 'pending' : 'covered'));
+    const statusLabel = isOpen ? 'OPEN' : (s.status==='closed' ? 'CLOSED' : (isPending ? 'PENDING' : 'COVERED'));
+    $('detailBody').innerHTML = `
+      ${s.facilityName ? `<div style="font-weight:600;">${escapeHtml(s.facilityName)}</div>` : ''}
+      <div class="field-hint" style="font-size:13px;margin:0;">${formatDate(s.date)} · ${s.start}–${s.end}</div>
+      <div class="field-hint" style="font-size:13px;margin:0;">${escapeHtml(s.location||'No location given')}</div>
+      ${s.notes ? `<div class="notes" style="font-size:13px;color:var(--text-dim);font-style:italic;">"${escapeHtml(s.notes)}"</div>` : ''}
+      ${s.postedOnReliefWebsite==='yes' ? `<div class="field-hint" style="font-size:13px;">🌐 Also posted on a relief website</div>` : ''}
+      <div style="margin-top:6px;">
+        <span class="tag ${statusClass}">${statusLabel}</span>
+      </div>
+      ${s.status==='claimed' ? `<div class="field-hint" style="font-size:13px;">Covered by ${escapeHtml(s.claimerName||'')}</div>` : ''}
+      ${s.status==='closed' ? `<div class="field-hint" style="font-size:13px;">Closed — ${escapeHtml(s.closedReason||'')}</div>` : ''}
+      ${isPending ? `<div class="field-hint" style="font-size:13px;">Claim requested by ${escapeHtml(s.pendingClaimantName||'')} (${escapeHtml(s.pendingClaimantEmail||'')}${s.pendingClaimantPhone ? ', '+escapeHtml(s.pendingClaimantPhone) : ''})</div><div class="field-hint" style="font-size:13px;">Hours worked this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ would trigger overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · Day rate: '+escapeHtml(s.pendingClaimantDayRate) : ''}</div>` : ''}
+    `;
+    $('detailClaimBtn').style.display = isOpen ? 'inline-block' : 'none';
+    $('detailCloseShiftBtn').style.display = isOpen ? 'inline-block' : 'none';
+    $('detailApproveBtn').style.display = isPending ? 'inline-block' : 'none';
+    $('detailDenyBtn').style.display = isPending ? 'inline-block' : 'none';
+    openModal('detailOverlay');
+  }
+  $('detailClaimBtn').addEventListener('click', ()=>{
+    closeModal('detailOverlay');
+    if(currentDetailId) openClaimModal(currentDetailId);
+  });
+  $('detailCloseShiftBtn').addEventListener('click', ()=>{
+    closeModal('detailOverlay');
+    if(currentDetailId) openCloseModal(currentDetailId);
+  });
+  $('detailApproveBtn').addEventListener('click', ()=>{
+    closeModal('detailOverlay');
+    if(currentDetailId) approveClaim(currentDetailId);
+  });
+  $('detailDenyBtn').addEventListener('click', ()=>{
+    closeModal('detailOverlay');
+    if(currentDetailId) denyClaim(currentDetailId);
+  });
+
+  document.querySelectorAll('.view-btn[data-view]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.view-btn[data-view]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentView = btn.getAttribute('data-view');
+      $('boardList').style.display = currentView==='list' ? 'flex' : 'none';
+      $('calendarView').style.display = currentView==='calendar' ? 'flex' : 'none';
+      $('boardTitle').textContent = currentView==='list' ? 'Open Shifts' : 'Shift Calendar';
+      renderBoard();
+    });
+  });
+  $('calPrev').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()-1); renderCalendarView(); });
+  $('calNext').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()+1); renderCalendarView(); });
+
+  document.querySelectorAll('#f-relief-toggle [data-relief]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#f-relief-toggle [data-relief]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      $('f-relief-value').value = btn.getAttribute('data-relief');
+    });
+  });
+
+  document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      $('c-overtime-value').value = btn.getAttribute('data-overtime');
+    });
+  });
+
+  // ---------- repeat / recurring shift controls ----------
+  let selectedRepeatDows = new Set();
+  document.querySelectorAll('#f-repeat-toggle [data-repeat]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#f-repeat-toggle [data-repeat]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = btn.getAttribute('data-repeat');
+      $('f-repeat-value').value = val;
+      $('f-repeat-options').style.display = val==='none' ? 'none' : 'block';
+      $('f-repeat-days-wrap').style.display = val==='weekly' ? 'block' : 'none';
+    });
+  });
+  document.querySelectorAll('#f-repeat-days [data-dow]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const d = btn.getAttribute('data-dow');
+      btn.classList.toggle('active');
+      if(selectedRepeatDows.has(d)) selectedRepeatDows.delete(d); else selectedRepeatDows.add(d);
+    });
+  });
+
+  function resetRepeatControls(){
+    $('f-repeat-value').value = 'none';
+    $('f-repeat-until').value = '';
+    $('f-repeat-options').style.display = 'none';
+    $('f-repeat-days-wrap').style.display = 'none';
+    selectedRepeatDows.clear();
+    document.querySelectorAll('#f-repeat-toggle [data-repeat]').forEach(b=> b.classList.toggle('active', b.getAttribute('data-repeat')==='none'));
+    document.querySelectorAll('#f-repeat-days [data-dow]').forEach(b=> b.classList.remove('active'));
+  }
+
+  // ---------- history log ----------
+  function formatDateTime(ms){
+    if(!ms) return '—';
+    return new Date(ms).toLocaleString(undefined, {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'});
+  }
+
+  function renderHistory(){
+    const tbody = $('historyTableBody');
+    const sorted = [...shifts].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+    if(sorted.length===0){
+      tbody.innerHTML = `<tr><td colspan="9" style="color:var(--text-dim);">No shifts have been posted yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = sorted.map(s=>{
+      const statusClass = s.status==='open' ? 'open' : (s.status==='closed' ? 'closed' : (s.status==='pending' ? 'pending' : 'covered'));
+      const statusLabel = s.status.toUpperCase();
+      const facilityOrLoc = s.facilityName ? s.facilityName : (s.location||'—');
+      let outcome = '—', outcomeAt = '—';
+      if(s.status==='claimed'){
+        outcome = 'Claimed by ' + (s.claimerName||'');
+        if(s.claimerOvertime==='yes') outcome += ' (overtime)';
+        outcomeAt = formatDateTime(s.claimedAt);
+      }
+      else if(s.status==='closed'){ outcome = 'Closed — ' + (s.closedReason||''); outcomeAt = formatDateTime(s.closedAt); }
+      else if(s.status==='pending'){
+        outcome = 'Awaiting approval — ' + (s.pendingClaimantName||'');
+        if(s.pendingClaimantOvertime==='yes') outcome += ' (overtime)';
+        outcomeAt = formatDateTime(s.pendingClaimedAt);
+      }
+      else if(s.status==='open' && s.approvalLog && s.approvalLog.length){
+        const last = s.approvalLog[s.approvalLog.length-1];
+        if(last.decision==='denied'){ outcome = 'Reopened after denying ' + (last.name||''); outcomeAt = formatDateTime(last.decidedAt); }
+      }
+      return `<tr>
+        <td><span class="tag ${statusClass}">${statusLabel}</span></td>
+        <td>${escapeHtml(s.title)}</td>
+        <td>${escapeHtml(facilityOrLoc)}</td>
+        <td class="mono">${escapeHtml(s.date||'')}</td>
+        <td class="mono">${escapeHtml(s.start||'')}–${escapeHtml(s.end||'')}</td>
+        <td>${escapeHtml(s.posterName||'')}</td>
+        <td>${s.postedOnReliefWebsite==='yes' ? 'Yes' : 'No'}</td>
+        <td>${escapeHtml(outcome)}</td>
+        <td class="mono">${outcomeAt}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  $('btnHistory').addEventListener('click', ()=>{
+    renderHistory();
+    openModal('historyOverlay');
+  });
+
+  function csvEscape(val){
+    const s = (val==null ? '' : String(val));
+    if(/[",\n]/.test(s)){ return '"' + s.replace(/"/g,'""') + '"'; }
+    return s;
+  }
+
+  $('btnExportCsv').addEventListener('click', ()=>{
+    const headers = ['Status','Shift','Facility','Location','Date','Start','End','Posted By','Poster Email','Posted on Relief Website','Pending Claimant','Claimed By','Claimer Email','Claimer Phone','Hours Worked This Week','Places in Overtime','Day Rate','Claimed At','Closed Reason','Closed At','Prior Denials','Posted At'];
+    const sorted = [...shifts].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+    const rows = sorted.map(s=>{
+      const priorDenials = (s.approvalLog||[]).filter(e=>e.decision==='denied').map(e=> e.name+' ('+formatDateTime(e.decidedAt)+')').join('; ');
+      const phone = s.status==='claimed' ? s.claimerPhone : (s.status==='pending' ? s.pendingClaimantPhone : '');
+      const hoursWorked = s.status==='claimed' ? s.claimerHoursWorked : (s.status==='pending' ? s.pendingClaimantHoursWorked : null);
+      const overtime = s.status==='claimed' ? s.claimerOvertime : (s.status==='pending' ? s.pendingClaimantOvertime : '');
+      const dayRate = s.status==='claimed' ? s.claimerDayRate : (s.status==='pending' ? s.pendingClaimantDayRate : '');
+      return [
+        s.status,
+        s.title,
+        s.facilityName||'',
+        s.location||'',
+        s.date||'',
+        s.start||'',
+        s.end||'',
+        s.posterName||'',
+        s.posterEmail||'',
+        s.postedOnReliefWebsite==='yes' ? 'Yes' : 'No',
+        s.status==='pending' ? (s.pendingClaimantName||'') : '',
+        s.status==='claimed' ? (s.claimerName||'') : '',
+        s.status==='claimed' ? (s.claimerEmail||'') : '',
+        phone||'',
+        hoursWorked!=null ? hoursWorked : '',
+        overtime==='yes' ? 'Yes' : (overtime==='no' ? 'No' : ''),
+        dayRate||'',
+        s.status==='claimed' ? formatDateTime(s.claimedAt) : '',
+        s.status==='closed' ? (s.closedReason||'') : '',
+        s.status==='closed' ? formatDateTime(s.closedAt) : '',
+        priorDenials,
+        formatDateTime(s.createdAt)
+      ];
+    });
+    const csv = [headers, ...rows].map(r=> r.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `shift-history-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    logActivity('Exported history log to CSV.');
+  });
+
+  function formatDate(d){
+    if(!d) return '';
+    const dt = new Date(d+'T00:00:00');
+    if(isNaN(dt)) return d;
+    return dt.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  // ---------- modals ----------
+  function openModal(id){ $(id).classList.add('show'); }
+  function closeModal(id){ $(id).classList.remove('show'); }
+  document.querySelectorAll('[data-close]').forEach(btn=>{
+    btn.addEventListener('click', ()=> closeModal(btn.getAttribute('data-close')));
+  });
+  document.querySelectorAll('.overlay').forEach(ov=>{
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('show'); });
+  });
+
+  $('btnPost').addEventListener('click', ()=> openModal('postOverlay'));
+  $('btnSettings').addEventListener('click', ()=>{
+    $('s-service').value = localConfig.serviceId||'';
+    $('s-template').value = localConfig.templateId||'';
+    $('s-public').value = localConfig.publicKey||'';
+    $('s-watch-email').value = localConfig.watchEmail||'';
+    $('s-carto-key').value = localConfig.cartoApiKey||'';
+    openModal('settingsOverlay');
+  });
+
+  $('btnSaveSettings').addEventListener('click', async ()=>{
+    localConfig.serviceId = $('s-service').value.trim();
+    localConfig.templateId = $('s-template').value.trim();
+    localConfig.publicKey = $('s-public').value.trim();
+    const watchEmail = $('s-watch-email').value.trim();
+    localConfig.watchEmail = watchEmail;
+    localConfig.cartoApiKey = $('s-carto-key').value.trim();
+    await saveConfig();
+    initEmailJs();
+    setBasemapTiles();
+    if(watchEmail && !watchers.includes(watchEmail)){
+      watchers.push(watchEmail);
+      await saveWatchers();
+    }
+    closeModal('settingsOverlay');
+    renderBoard();
+    logActivity('Settings saved.');
+  });
+
+  // ---------- post shift ----------
+  $('btnSubmitShift').addEventListener('click', async ()=>{
+    const title = $('f-title').value.trim();
+    const date = $('f-date').value;
+    const start = $('f-start').value;
+    const end = $('f-end').value;
+    const location = $('f-location').value.trim();
+    const notes = $('f-notes').value.trim();
+    const posterName = $('f-poster-name').value.trim();
+    const posterEmail = $('f-poster-email').value.trim();
+    const urgentNote = $('f-urgent-note').value.trim();
+    const postedOnReliefWebsite = $('f-relief-value').value;
+    const geoEl = $('geoStatus');
+    const fac = facilityByCode($('f-facility').value);
+    const repeatMode = $('f-repeat-value').value;
+    const repeatUntil = $('f-repeat-until').value;
+
+    if(!title || !date || !start || !end || !posterName || !posterEmail){
+      alert('Please fill in shift, date, start/end time, and your name and email.');
+      return;
+    }
+
+    // build the list of dates this posting should cover
+    let dateList = [date];
+    if(repeatMode !== 'none'){
+      if(!repeatUntil){ alert('Please choose a "Repeat until" date.'); return; }
+      if(repeatUntil < date){ alert('"Repeat until" must be on or after the start date.'); return; }
+      if(repeatMode==='weekly' && selectedRepeatDows.size===0){ alert('Please select at least one day of the week to repeat on.'); return; }
+      dateList = [];
+      let cursor = new Date(date+'T00:00:00');
+      const endD = new Date(repeatUntil+'T00:00:00');
+      while(cursor <= endD){
+        const iso = toISODate(cursor);
+        if(repeatMode==='daily'){
+          dateList.push(iso);
+        } else if(repeatMode==='weekly' && selectedRepeatDows.has(String(cursor.getDay()))){
+          dateList.push(iso);
+        }
+        cursor.setDate(cursor.getDate()+1);
+      }
+      if(dateList.length===0){ alert('No matching dates were found in that range.'); return; }
+    }
+
+    let lat = geoEl.dataset.lat ? parseFloat(geoEl.dataset.lat) : null;
+    let lng = geoEl.dataset.lng ? parseFloat(geoEl.dataset.lng) : null;
+    if(lat==null && location){
+      const g = await geocode(location);
+      if(g){ lat=g.lat; lng=g.lng; }
+    }
+
+    const seriesId = dateList.length>1 ? ('series_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)) : null;
+    const createdShifts = dateList.map(d => ({
+      id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_' + d,
+      title, date: d, start, end, location, notes, urgentNote,
+      postedOnReliefWebsite,
+      posterName, posterEmail,
+      facilityCode: fac ? fac.code : null,
+      facilityName: fac ? fac.name : null,
+      seriesId,
+      status: 'open',
+      pendingClaimantName: null, pendingClaimantEmail: null, pendingClaimantPhone: null,
+      pendingClaimantHoursWorked: null, pendingClaimantOvertime: null, pendingClaimantDayRate: null, pendingClaimedAt: null,
+      claimerName: null, claimerEmail: null, claimerPhone: null,
+      claimerHoursWorked: null, claimerOvertime: null, claimerDayRate: null, claimedAt: null,
+      closedReason: null, closedAt: null,
+      approvalLog: [],
+      lat, lng,
+      createdAt: Date.now()
+    }));
+
+    shifts.push(...createdShifts);
+    await saveShifts();
+    renderBoard();
+    closeModal('postOverlay');
+    clearPostForm();
+
+    if(createdShifts.length===1){
+      logActivity(`<b>${escapeHtml(posterName)}</b> posted "${escapeHtml(title)}" (${date})`);
+    } else {
+      logActivity(`<b>${escapeHtml(posterName)}</b> posted ${createdShifts.length} shifts of "${escapeHtml(title)}" (${date} → ${repeatUntil})`);
+    }
+
+    // notify watchers + facility manager
+    const dateSummary = createdShifts.length===1
+      ? `${date}, ${start}–${end}`
+      : `${createdShifts.length} shifts, ${date} through ${repeatUntil} (${start}–${end}):\n` + createdShifts.map(s=>'  • '+s.date).join('\n');
+    const subject = createdShifts.length===1
+      ? `New open shift: ${title} — ${date}`
+      : `${createdShifts.length} new open shifts: ${title}`;
+    const message = `${posterName} posted ${createdShifts.length>1?'shifts':'a shift'} needing coverage:\n\n${title}\n${fac ? fac.name+'\n':''}${dateSummary}\n${location}\n${notes?('Notes: '+notes):''}\n\nOpen the board to claim.`;
+    for(const w of watchers){ await sendEmail(w, subject, message); }
+    if(fac && fac.managerEmail && !watchers.includes(fac.managerEmail)){
+      await sendEmail(fac.managerEmail, `${createdShifts.length>1?createdShifts.length+' open shifts need':'Open shift needs'} coverage at ${fac.name}`, message);
+      logActivity(`Notified facility manager <b>${escapeHtml(fac.managerName||fac.managerEmail)}</b> at ${escapeHtml(fac.name)}`);
+    }
+  });
+
+  function clearPostForm(){
+    ['f-title','f-location','f-notes','f-poster-name','f-poster-email','f-urgent-note'].forEach(id=> $(id).value='');
+    $('f-date').value=''; $('f-start').value=''; $('f-end').value=''; $('f-facility').value='';
+    $('f-relief-value').value = 'no';
+    document.querySelectorAll('#f-relief-toggle [data-relief]').forEach(b=> b.classList.toggle('active', b.getAttribute('data-relief')==='no'));
+    resetRepeatControls();
+    const el = $('geoStatus'); el.className='geostatus'; el.textContent='Location will be placed on the map automatically.'; delete el.dataset.lat; delete el.dataset.lng;
+  }
+
+  // ---------- claim shift ----------
+  window.__openClaim = openClaimModal; // used by map popup buttons
+  function openClaimModal(id){
+    pendingClaimId = id;
+    const s = shifts.find(x=>x.id===id);
+    if(!s) return;
+    $('claimShiftSummary').textContent = `${s.title} — ${formatDate(s.date)}, ${s.start}–${s.end} · ${s.location||'no location'}`;
+    $('c-name').value=''; $('c-email').value=''; $('c-phone').value=''; $('c-hours-worked').value=''; $('c-day-rate').value='';
+    $('c-overtime-value').value = 'no';
+    document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(b=> b.classList.toggle('active', b.getAttribute('data-overtime')==='no'));
+    openModal('claimOverlay');
+  }
+
+  $('btnConfirmClaim').addEventListener('click', async ()=>{
+    const name = $('c-name').value.trim();
+    const email = $('c-email').value.trim();
+    const phone = $('c-phone').value.trim();
+    const hoursWorkedRaw = $('c-hours-worked').value.trim();
+    const overtime = $('c-overtime-value').value;
+    const dayRate = $('c-day-rate').value.trim();
+    if(!name || !email){ alert('Please enter your name and email.'); return; }
+    if(!phone){ alert('Please enter a phone number.'); return; }
+    if(hoursWorkedRaw==='' || isNaN(parseFloat(hoursWorkedRaw)) || parseFloat(hoursWorkedRaw)<0){
+      alert('Please enter how many hours you\'ve worked so far this week (0 or more).');
+      return;
+    }
+    const hoursWorked = parseFloat(hoursWorkedRaw);
+    const s = shifts.find(x=>x.id===pendingClaimId);
+    if(!s){ closeModal('claimOverlay'); return; }
+    if(s.status!=='open'){ alert('This shift is no longer open to claim.'); closeModal('claimOverlay'); renderBoard(); return; }
+
+    s.status='pending';
+    s.pendingClaimantName=name; s.pendingClaimantEmail=email; s.pendingClaimantPhone=phone;
+    s.pendingClaimantHoursWorked=hoursWorked; s.pendingClaimantOvertime=overtime; s.pendingClaimantDayRate=dayRate;
+    s.pendingClaimedAt=Date.now();
+    await saveShifts();
+    closeModal('claimOverlay');
+    renderBoard();
+
+    logActivity(`<b>${escapeHtml(name)}</b> requested to claim "${escapeHtml(s.title)}" — awaiting approval`);
+
+    const otLine = overtime==='yes' ? '\n⚠ This would place them into overtime.' : '';
+    const rateLine = dayRate ? `\nDay rate: ${dayRate}` : '';
+    const subject = `Approval needed: ${name} wants to cover ${s.title}`;
+    const message = `${name} (${email}, ${phone}) has requested to claim your shift:\n\n${s.title}\n${s.date}, ${s.start}–${s.end}\n${s.location}\n\nHours worked so far this week: ${hoursWorked}${otLine}${rateLine}\n\nOpen the board and check Pending Approval to approve or deny this request.`;
+    await sendEmail(s.posterEmail, subject, message);
+  });
+
+  // ---------- approve / deny claim ----------
+  window.__approveClaim = approveClaim; // used by map popup buttons
+  window.__denyClaim = denyClaim;
+  async function approveClaim(id){
+    const s = shifts.find(x=>x.id===id);
+    if(!s || s.status!=='pending') return;
+    const name = s.pendingClaimantName, email = s.pendingClaimantEmail;
+    const phone = s.pendingClaimantPhone, hoursWorked = s.pendingClaimantHoursWorked, overtime = s.pendingClaimantOvertime, dayRate = s.pendingClaimantDayRate;
+    s.status='claimed';
+    s.claimerName=name; s.claimerEmail=email; s.claimerPhone=phone;
+    s.claimerHoursWorked=hoursWorked; s.claimerOvertime=overtime; s.claimerDayRate=dayRate; s.claimedAt=Date.now();
+    s.approvalLog = s.approvalLog || [];
+    s.approvalLog.push({name, email, decision:'approved', decidedAt:Date.now()});
+    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimantPhone=null;
+    s.pendingClaimantHoursWorked=null; s.pendingClaimantOvertime=null; s.pendingClaimantDayRate=null; s.pendingClaimedAt=null;
+    await saveShifts();
+    renderBoard();
+
+    const flap = $('flap-'+s.id);
+    if(flap){ flap.classList.add('flip-flash'); setTimeout(()=>flap.classList.remove('flip-flash'),650); }
+
+    logActivity(`<b>${escapeHtml(s.posterName)}</b> approved <b>${escapeHtml(name)}</b> for "${escapeHtml(s.title)}"`);
+
+    const subject = `You're approved: ${s.title}`;
+    const message = `Good news — ${s.posterName} approved you to cover:\n\n${s.title}\n${s.date}, ${s.start}–${s.end}\n${s.location}\n\nThanks for covering this shift!`;
+    await sendEmail(email, subject, message);
+  }
+
+  async function denyClaim(id){
+    const s = shifts.find(x=>x.id===id);
+    if(!s || s.status!=='pending') return;
+    if(!confirm(`Deny ${s.pendingClaimantName}'s claim on "${s.title}"? The shift will reopen for others.`)) return;
+    const name = s.pendingClaimantName, email = s.pendingClaimantEmail;
+    s.approvalLog = s.approvalLog || [];
+    s.approvalLog.push({name, email, decision:'denied', decidedAt:Date.now()});
+    s.status='open';
+    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimantPhone=null;
+    s.pendingClaimantHoursWorked=null; s.pendingClaimantOvertime=null; s.pendingClaimantDayRate=null; s.pendingClaimedAt=null;
+    await saveShifts();
+    renderBoard();
+
+    logActivity(`<b>${escapeHtml(s.posterName)}</b> denied <b>${escapeHtml(name)}</b> for "${escapeHtml(s.title)}" — reopened`);
+
+    const subject = `Update on your claim: ${s.title}`;
+    const message = `${s.posterName} was unable to approve your claim on:\n\n${s.title}\n${s.date}, ${s.start}–${s.end}\n${s.location}\n\nThe shift has been reopened for others to claim. Thanks for your interest.`;
+    await sendEmail(email, subject, message);
+  }
+
+  // ---------- close shift ----------
+  let pendingCloseId = null;
+  window.__openClose = openCloseModal; // used by map popup buttons
+  function openCloseModal(id){
+    pendingCloseId = id;
+    const s = shifts.find(x=>x.id===id);
+    if(!s) return;
+    $('closeShiftSummary').textContent = `${s.title} — ${formatDate(s.date)}, ${s.start}–${s.end} · ${s.location||'no location'}`;
+    $('cl-reason').value = '';
+    $('cl-other-text').value = '';
+    $('cl-other-wrap').style.display = 'none';
+    openModal('closeOverlay');
+  }
+
+  $('cl-reason').addEventListener('change', ()=>{
+    $('cl-other-wrap').style.display = $('cl-reason').value==='Other' ? 'block' : 'none';
+  });
+
+  $('btnConfirmClose').addEventListener('click', async ()=>{
+    const reasonSel = $('cl-reason').value;
+    if(!reasonSel){ alert('Please select a reason.'); return; }
+    let reason = reasonSel;
+    if(reasonSel==='Other'){
+      const custom = $('cl-other-text').value.trim();
+      if(!custom){ alert('Please specify a reason.'); return; }
+      reason = custom;
+    }
+    const s = shifts.find(x=>x.id===pendingCloseId);
+    if(!s){ closeModal('closeOverlay'); return; }
+    if(s.status!=='open'){ alert('This shift is no longer open.'); closeModal('closeOverlay'); renderBoard(); return; }
+
+    s.status='closed'; s.closedReason=reason; s.closedAt=Date.now();
+    await saveShifts();
+    closeModal('closeOverlay');
+    renderBoard();
+
+    logActivity(`Shift "${escapeHtml(s.title)}" closed — ${escapeHtml(reason)}`);
+  });
+
+  // ---------- sync ----------
+  async function refresh(){
+    await loadShifts();
+    await loadWatchers();
+    renderBoard();
+    $('lastSync').textContent = 'synced ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+
+  async function boot(){
+    await loadConfig();
+    initMap();
+    populateFacilityDropdown();
+    initEmailJs();
+    await refresh();
+    setInterval(refresh, 8000); // keep multiple viewers roughly in sync
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
