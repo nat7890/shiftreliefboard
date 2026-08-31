@@ -387,6 +387,26 @@
         <label>Your email</label>
         <input id="c-email" placeholder="alex@example.com" />
       </div>
+      <div>
+        <label>Phone number</label>
+        <input id="c-phone" type="tel" placeholder="(555) 123-4567" />
+      </div>
+      <div>
+        <label>How many hours have you worked so far this week?</label>
+        <input id="c-hours-worked" type="number" min="0" step="0.25" placeholder="e.g. 32" />
+      </div>
+      <div>
+        <label>If you're an hourly employee, will this relief shift place you in overtime?</label>
+        <div class="view-toggle" id="c-overtime-toggle">
+          <button type="button" class="view-btn toggle-btn active" data-overtime="no">No</button>
+          <button type="button" class="view-btn toggle-btn" data-overtime="yes">Yes</button>
+        </div>
+        <input type="hidden" id="c-overtime-value" value="no" />
+      </div>
+      <div>
+        <label>What's your day rate?</label>
+        <input id="c-day-rate" placeholder="e.g. $250/day" />
+      </div>
       <div class="field-hint">The person who posted this shift will need to approve your claim. You'll get an email either way.</div>
     </div>
     <div class="modal-foot">
@@ -650,7 +670,7 @@
       if(s.status==='open'){
         actionHtml = `<div style="display:flex;gap:6px;"><button class="btn btn-primary btn-sm" onclick="window.__openClaim('${s.id}')">Claim</button><button class="btn btn-sm" onclick="window.__openClose('${s.id}')">Close</button></div>`;
       } else if(s.status==='pending'){
-        actionHtml = `<div class="field-hint" style="margin:0 0 6px;">Requested by ${escapeHtml(s.pendingClaimantName||'')}</div><div style="display:flex;gap:6px;"><button class="btn btn-sm" style="color:var(--red);" onclick="window.__denyClaim('${s.id}')">Deny</button><button class="btn btn-primary btn-sm" onclick="window.__approveClaim('${s.id}')">Approve</button></div>`;
+        actionHtml = `<div class="field-hint" style="margin:0 0 4px;">Requested by ${escapeHtml(s.pendingClaimantName||'')}</div><div class="field-hint" style="margin:0 0 6px;">Hours this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · '+escapeHtml(s.pendingClaimantDayRate) : ''}</div><div style="display:flex;gap:6px;"><button class="btn btn-sm" style="color:var(--red);" onclick="window.__denyClaim('${s.id}')">Deny</button><button class="btn btn-primary btn-sm" onclick="window.__approveClaim('${s.id}')">Approve</button></div>`;
       } else if(s.status==='closed'){
         actionHtml = `<span class="tag closed">CLOSED</span>`;
       } else {
@@ -735,7 +755,8 @@
           <p class="title">${escapeHtml(s.title)}</p>
           ${s.facilityName ? `<div class="loc" style="color:var(--text);font-weight:500;">${escapeHtml(s.facilityName)}</div>` : ''}
           <div class="loc">${escapeHtml(s.location||'No location given')}</div>
-          <div class="field-hint" style="margin-top:4px;">Claim requested by <b style="color:var(--text);">${escapeHtml(s.pendingClaimantName||'')}</b> (${escapeHtml(s.pendingClaimantEmail||'')})</div>
+          <div class="field-hint" style="margin-top:4px;">Claim requested by <b style="color:var(--text);">${escapeHtml(s.pendingClaimantName||'')}</b> (${escapeHtml(s.pendingClaimantEmail||'')}${s.pendingClaimantPhone ? ', '+escapeHtml(s.pendingClaimantPhone) : ''})</div>
+          <div class="field-hint" style="margin-top:2px;">Hours worked this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ would trigger overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · Day rate: '+escapeHtml(s.pendingClaimantDayRate) : ''}</div>
         </div>
         <div class="flap-status">
           <span class="tag pending">PENDING</span>
@@ -844,7 +865,7 @@
       </div>
       ${s.status==='claimed' ? `<div class="field-hint" style="font-size:13px;">Covered by ${escapeHtml(s.claimerName||'')}</div>` : ''}
       ${s.status==='closed' ? `<div class="field-hint" style="font-size:13px;">Closed — ${escapeHtml(s.closedReason||'')}</div>` : ''}
-      ${isPending ? `<div class="field-hint" style="font-size:13px;">Claim requested by ${escapeHtml(s.pendingClaimantName||'')} (${escapeHtml(s.pendingClaimantEmail||'')})</div>` : ''}
+      ${isPending ? `<div class="field-hint" style="font-size:13px;">Claim requested by ${escapeHtml(s.pendingClaimantName||'')} (${escapeHtml(s.pendingClaimantEmail||'')}${s.pendingClaimantPhone ? ', '+escapeHtml(s.pendingClaimantPhone) : ''})</div><div class="field-hint" style="font-size:13px;">Hours worked this week: ${s.pendingClaimantHoursWorked!=null ? escapeHtml(String(s.pendingClaimantHoursWorked)) : '—'}${s.pendingClaimantOvertime==='yes' ? ' · <span style="color:var(--red);">⚠ would trigger overtime</span>' : ''}${s.pendingClaimantDayRate ? ' · Day rate: '+escapeHtml(s.pendingClaimantDayRate) : ''}</div>` : ''}
     `;
     $('detailClaimBtn').style.display = isOpen ? 'inline-block' : 'none';
     $('detailCloseShiftBtn').style.display = isOpen ? 'inline-block' : 'none';
@@ -888,6 +909,14 @@
       document.querySelectorAll('#f-relief-toggle [data-relief]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       $('f-relief-value').value = btn.getAttribute('data-relief');
+    });
+  });
+
+  document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      $('c-overtime-value').value = btn.getAttribute('data-overtime');
     });
   });
 
@@ -939,9 +968,17 @@
       const statusLabel = s.status.toUpperCase();
       const facilityOrLoc = s.facilityName ? s.facilityName : (s.location||'—');
       let outcome = '—', outcomeAt = '—';
-      if(s.status==='claimed'){ outcome = 'Claimed by ' + (s.claimerName||''); outcomeAt = formatDateTime(s.claimedAt); }
+      if(s.status==='claimed'){
+        outcome = 'Claimed by ' + (s.claimerName||'');
+        if(s.claimerOvertime==='yes') outcome += ' (overtime)';
+        outcomeAt = formatDateTime(s.claimedAt);
+      }
       else if(s.status==='closed'){ outcome = 'Closed — ' + (s.closedReason||''); outcomeAt = formatDateTime(s.closedAt); }
-      else if(s.status==='pending'){ outcome = 'Awaiting approval — ' + (s.pendingClaimantName||''); outcomeAt = formatDateTime(s.pendingClaimedAt); }
+      else if(s.status==='pending'){
+        outcome = 'Awaiting approval — ' + (s.pendingClaimantName||'');
+        if(s.pendingClaimantOvertime==='yes') outcome += ' (overtime)';
+        outcomeAt = formatDateTime(s.pendingClaimedAt);
+      }
       else if(s.status==='open' && s.approvalLog && s.approvalLog.length){
         const last = s.approvalLog[s.approvalLog.length-1];
         if(last.decision==='denied'){ outcome = 'Reopened after denying ' + (last.name||''); outcomeAt = formatDateTime(last.decidedAt); }
@@ -972,10 +1009,14 @@
   }
 
   $('btnExportCsv').addEventListener('click', ()=>{
-    const headers = ['Status','Shift','Facility','Location','Date','Start','End','Posted By','Poster Email','Posted on Relief Website','Pending Claimant','Claimed By','Claimer Email','Claimed At','Closed Reason','Closed At','Prior Denials','Posted At'];
+    const headers = ['Status','Shift','Facility','Location','Date','Start','End','Posted By','Poster Email','Posted on Relief Website','Pending Claimant','Claimed By','Claimer Email','Claimer Phone','Hours Worked This Week','Places in Overtime','Day Rate','Claimed At','Closed Reason','Closed At','Prior Denials','Posted At'];
     const sorted = [...shifts].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
     const rows = sorted.map(s=>{
       const priorDenials = (s.approvalLog||[]).filter(e=>e.decision==='denied').map(e=> e.name+' ('+formatDateTime(e.decidedAt)+')').join('; ');
+      const phone = s.status==='claimed' ? s.claimerPhone : (s.status==='pending' ? s.pendingClaimantPhone : '');
+      const hoursWorked = s.status==='claimed' ? s.claimerHoursWorked : (s.status==='pending' ? s.pendingClaimantHoursWorked : null);
+      const overtime = s.status==='claimed' ? s.claimerOvertime : (s.status==='pending' ? s.pendingClaimantOvertime : '');
+      const dayRate = s.status==='claimed' ? s.claimerDayRate : (s.status==='pending' ? s.pendingClaimantDayRate : '');
       return [
         s.status,
         s.title,
@@ -990,6 +1031,10 @@
         s.status==='pending' ? (s.pendingClaimantName||'') : '',
         s.status==='claimed' ? (s.claimerName||'') : '',
         s.status==='claimed' ? (s.claimerEmail||'') : '',
+        phone||'',
+        hoursWorked!=null ? hoursWorked : '',
+        overtime==='yes' ? 'Yes' : (overtime==='no' ? 'No' : ''),
+        dayRate||'',
         s.status==='claimed' ? formatDateTime(s.claimedAt) : '',
         s.status==='closed' ? (s.closedReason||'') : '',
         s.status==='closed' ? formatDateTime(s.closedAt) : '',
@@ -1114,8 +1159,10 @@
       facilityName: fac ? fac.name : null,
       seriesId,
       status: 'open',
-      pendingClaimantName: null, pendingClaimantEmail: null, pendingClaimedAt: null,
-      claimerName: null, claimerEmail: null, claimedAt: null,
+      pendingClaimantName: null, pendingClaimantEmail: null, pendingClaimantPhone: null,
+      pendingClaimantHoursWorked: null, pendingClaimantOvertime: null, pendingClaimantDayRate: null, pendingClaimedAt: null,
+      claimerName: null, claimerEmail: null, claimerPhone: null,
+      claimerHoursWorked: null, claimerOvertime: null, claimerDayRate: null, claimedAt: null,
       closedReason: null, closedAt: null,
       approvalLog: [],
       lat, lng,
@@ -1165,27 +1212,44 @@
     const s = shifts.find(x=>x.id===id);
     if(!s) return;
     $('claimShiftSummary').textContent = `${s.title} — ${formatDate(s.date)}, ${s.start}–${s.end} · ${s.location||'no location'}`;
-    $('c-name').value=''; $('c-email').value='';
+    $('c-name').value=''; $('c-email').value=''; $('c-phone').value=''; $('c-hours-worked').value=''; $('c-day-rate').value='';
+    $('c-overtime-value').value = 'no';
+    document.querySelectorAll('#c-overtime-toggle [data-overtime]').forEach(b=> b.classList.toggle('active', b.getAttribute('data-overtime')==='no'));
     openModal('claimOverlay');
   }
 
   $('btnConfirmClaim').addEventListener('click', async ()=>{
     const name = $('c-name').value.trim();
     const email = $('c-email').value.trim();
+    const phone = $('c-phone').value.trim();
+    const hoursWorkedRaw = $('c-hours-worked').value.trim();
+    const overtime = $('c-overtime-value').value;
+    const dayRate = $('c-day-rate').value.trim();
     if(!name || !email){ alert('Please enter your name and email.'); return; }
+    if(!phone){ alert('Please enter a phone number.'); return; }
+    if(hoursWorkedRaw==='' || isNaN(parseFloat(hoursWorkedRaw)) || parseFloat(hoursWorkedRaw)<0){
+      alert('Please enter how many hours you\'ve worked so far this week (0 or more).');
+      return;
+    }
+    const hoursWorked = parseFloat(hoursWorkedRaw);
     const s = shifts.find(x=>x.id===pendingClaimId);
     if(!s){ closeModal('claimOverlay'); return; }
     if(s.status!=='open'){ alert('This shift is no longer open to claim.'); closeModal('claimOverlay'); renderBoard(); return; }
 
-    s.status='pending'; s.pendingClaimantName=name; s.pendingClaimantEmail=email; s.pendingClaimedAt=Date.now();
+    s.status='pending';
+    s.pendingClaimantName=name; s.pendingClaimantEmail=email; s.pendingClaimantPhone=phone;
+    s.pendingClaimantHoursWorked=hoursWorked; s.pendingClaimantOvertime=overtime; s.pendingClaimantDayRate=dayRate;
+    s.pendingClaimedAt=Date.now();
     await saveShifts();
     closeModal('claimOverlay');
     renderBoard();
 
     logActivity(`<b>${escapeHtml(name)}</b> requested to claim "${escapeHtml(s.title)}" — awaiting approval`);
 
+    const otLine = overtime==='yes' ? '\n⚠ This would place them into overtime.' : '';
+    const rateLine = dayRate ? `\nDay rate: ${dayRate}` : '';
     const subject = `Approval needed: ${name} wants to cover ${s.title}`;
-    const message = `${name} (${email}) has requested to claim your shift:\n\n${s.title}\n${s.date}, ${s.start}–${s.end}\n${s.location}\n\nOpen the board and check Pending Approval to approve or deny this request.`;
+    const message = `${name} (${email}, ${phone}) has requested to claim your shift:\n\n${s.title}\n${s.date}, ${s.start}–${s.end}\n${s.location}\n\nHours worked so far this week: ${hoursWorked}${otLine}${rateLine}\n\nOpen the board and check Pending Approval to approve or deny this request.`;
     await sendEmail(s.posterEmail, subject, message);
   });
 
@@ -1196,11 +1260,14 @@
     const s = shifts.find(x=>x.id===id);
     if(!s || s.status!=='pending') return;
     const name = s.pendingClaimantName, email = s.pendingClaimantEmail;
+    const phone = s.pendingClaimantPhone, hoursWorked = s.pendingClaimantHoursWorked, overtime = s.pendingClaimantOvertime, dayRate = s.pendingClaimantDayRate;
     s.status='claimed';
-    s.claimerName=name; s.claimerEmail=email; s.claimedAt=Date.now();
+    s.claimerName=name; s.claimerEmail=email; s.claimerPhone=phone;
+    s.claimerHoursWorked=hoursWorked; s.claimerOvertime=overtime; s.claimerDayRate=dayRate; s.claimedAt=Date.now();
     s.approvalLog = s.approvalLog || [];
     s.approvalLog.push({name, email, decision:'approved', decidedAt:Date.now()});
-    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimedAt=null;
+    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimantPhone=null;
+    s.pendingClaimantHoursWorked=null; s.pendingClaimantOvertime=null; s.pendingClaimantDayRate=null; s.pendingClaimedAt=null;
     await saveShifts();
     renderBoard();
 
@@ -1222,7 +1289,8 @@
     s.approvalLog = s.approvalLog || [];
     s.approvalLog.push({name, email, decision:'denied', decidedAt:Date.now()});
     s.status='open';
-    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimedAt=null;
+    s.pendingClaimantName=null; s.pendingClaimantEmail=null; s.pendingClaimantPhone=null;
+    s.pendingClaimantHoursWorked=null; s.pendingClaimantOvertime=null; s.pendingClaimantDayRate=null; s.pendingClaimedAt=null;
     await saveShifts();
     renderBoard();
 
